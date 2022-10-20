@@ -16,20 +16,20 @@ ENV LC_ALL en_US.UTF-8
 #ENV CARTODB_VERSION=v4.11.152
 #ENV CARTODB_VERSION=v4.12.9
 #ENV CARTODB_VERSION=v4.12.26
-#ENV CARTODB_VERSION=v4.12.30
-ENV CARTODB_VERSION=master
-#ENV SQLAPI_VERSION=1.47.2
-ENV SQLAPI_VERSION=master
-#ENV CRANKSHAFT_VERSION=0.8.1
-ENV CRANKSHAFT_VERSION=master
-#ENV WINDSHAFT_VERSION=5.4.0
-ENV WINDSHAFT_VERSION=master
-#ENV DATASERVICES_VERSION=0.0.2
-ENV DATASERVICES_VERSION=master
-#ENV DATAERVICESAPI_VERSION=0.30.5-server
-ENV DATAERVICESAPI_VERSION=master
-#ENV OBSERVATORY_VERSION=1.9.0
-ENV OBSERVATORY_VERSION=master
+ENV CARTODB_VERSION=v4.12.30
+#ENV CARTODB_VERSION=master
+ENV SQLAPI_VERSION=1.47.2
+#ENV SQLAPI_VERSION=master
+ENV CRANKSHAFT_VERSION=0.8.1
+#ENV CRANKSHAFT_VERSION=master
+ENV WINDSHAFT_VERSION=5.4.0
+#ENV WINDSHAFT_VERSION=master
+ENV DATASERVICES_VERSION=0.0.2
+#ENV DATASERVICES_VERSION=master
+ENV DATAERVICESAPI_VERSION=0.30.5-server
+#ENV DATAERVICESAPI_VERSION=master
+ENV OBSERVATORY_VERSION=1.9.0
+#ENV OBSERVATORY_VERSION=master
 
 RUN useradd -m -d /home/cartodb -s /bin/bash cartodb && \
   apt-get install -y -q \
@@ -108,7 +108,6 @@ RUN useradd -m -d /home/cartodb -s /bin/bash cartodb && \
     nginx-light \
     net-tools \
     ruby2.5-dev \
-    xz-utils \
   --no-install-recommends && \
   rm -rf /var/lib/apt/lists/*
 
@@ -126,12 +125,6 @@ RUN cd /opt && \
     cd /opt && \
     rm -rf varnish-3.0.7 varnish-3.0.7.tgz
 
-# Install NodeJS
-RUN curl https://nodejs.org/dist/v10.15.3/node-v10.15.3-linux-x64.tar.xz |tar -Jxf - --strip-components=1 -C /usr && \
-  npm install -g grunt-cli && \
-  npm install -g npm@6 && \
-  rm -r /tmp/npm-* /root/.npm
-
 # Setting PostgreSQL
 RUN sed -i 's/\(peer\|md5\)/trust/' /etc/postgresql/10/main/pg_hba.conf && \
     service postgresql start && \
@@ -140,15 +133,26 @@ RUN sed -i 's/\(peer\|md5\)/trust/' /etc/postgresql/10/main/pg_hba.conf && \
     service postgresql stop
 
 # Crankshaft: CARTO Spatial Analysis extension for PostgreSQL
+# RUN cd / && \
+#    curl https://bootstrap.pypa.io/get-pip.py | python && \
+#    git clone https://github.com/CartoDB/crankshaft.git && \
+#    cd /crankshaft && \
+#    git checkout $CRANKSHAFT_VERSION && \
+#    make install && \
+#    # Numpy gets upgraded after scikit-learn is installed
+#    # make sure scikit-learn is compatible with currently installed numpy, by reinstalling
+#    pip install --force-reinstall --no-cache-dir scikit-learn==0.14.1 && \
+#    cd ..
+
 RUN cd / && \
-    curl https://bootstrap.pypa.io/get-pip.py | python && \
+    curl https://bootstrap.pypa.io/pip/2.7/get-pip.py | python && \
     git clone https://github.com/CartoDB/crankshaft.git && \
     cd /crankshaft && \
     git checkout $CRANKSHAFT_VERSION && \
     make install && \
     # Numpy gets upgraded after scikit-learn is installed
     # make sure scikit-learn is compatible with currently installed numpy, by reinstalling
-    pip install --force-reinstall --no-cache-dir scikit-learn==0.17.0 && \
+    pip install --force-reinstall --no-cache-dir scikit-learn==0.14.1 && \
     cd ..
 
 # Initialize template postgis db
@@ -158,23 +162,39 @@ RUN service postgresql start && /bin/su postgres -c \
 
 ADD ./cartodb_pgsql.sh /tmp/cartodb_pgsql.sh
 
+# Install NodeJS (6)
+RUN curl https://nodejs.org/download/release/v6.9.2/node-v6.9.2-linux-x64.tar.gz| tar -zxf - --strip-components=1 -C /usr && \
+  npm install -g grunt-cli && \
+  npm install -g npm@3.10.9 && \
+  rm -r /tmp/npm-* /root/.npm
+
+RUN git config --global url."https://".insteadOf git://
+
 # Install CartoDB API
-RUN git clone git://github.com/CartoDB/CartoDB-SQL-API.git && \
+RUN git clone https://github.com/CartoDB/CartoDB-SQL-API.git && \
     cd CartoDB-SQL-API && \
     git checkout $SQLAPI_VERSION && \
     npm install && \
-    mkdir logs
+    rm -r /tmp/npm-* /root/.npm
 
 # Install Windshaft
-RUN git clone git://github.com/CartoDB/Windshaft-cartodb.git && \
+RUN git clone https://github.com/CartoDB/Windshaft-cartodb.git && \
     cd Windshaft-cartodb && \
     git checkout $WINDSHAFT_VERSION && \
-    npm install && \
+    npm install -g yarn@0.27.5 && \
+    yarn install && \
+    rm -r /tmp/npm-* /root/.npm && \
     mkdir logs
 
 # Install CartoDB
-RUN git clone --recursive git://github.com/CartoDB/cartodb.git && \
+# RUN git clone --recursive https://github.com/CartoDB/cartodb.git && \
+
+RUN git clone https://github.com/CartoDB/cartodb.git && \
     cd cartodb && \
+    git rm private && \
+    sed -i -e 's/git@github.com\:/https\:\/\/github.com\//g' .gitmodules && \
+#    git submodule foreach --recursive git submodule update --init
+    git submodule update --init --recursive && \
     git checkout $CARTODB_VERSION && \
     # Install cartodb extension
     cd lib/sql && \
@@ -186,7 +206,7 @@ RUN git clone --recursive git://github.com/CartoDB/cartodb.git && \
     rm -r /tmp/npm-* /root/.npm && \
     perl -pi -e 's/gdal==1\.10\.0/gdal==2.2.2/' python_requirements.txt && \
     pip install --no-binary :all: -r python_requirements.txt && \
-    gem install bundler --version=1.17.3 && gem install compass archive-tar-minitar rack && \
+    gem install bundler bundle compass archive-tar-minitar rack && \
     bundle update thin && \
     /bin/bash -l -c 'bundle install' && \
     cp config/grunt_development.json ./config/grunt_true.json && \
@@ -213,16 +233,21 @@ RUN cd / && git clone --recursive https://github.com/CartoDB/observatory-extensi
   git checkout $OBSERVATORY_VERSION && \
   PGUSER=postgres make deploy
 
+# Certbot
+RUN add-apt-repository -y ppa:certbot/certbot && apt-get install -y python-certbot-nginx
+
 # Copy confs
 ADD ./config/CartoDB-dev.js \
       /CartoDB-SQL-API/config/environments/development.js
 ADD ./config/WS-dev.js \
       /Windshaft-cartodb/config/environments/development.js
+# TODO create production.js for SQL and Windshaft
 ADD ./config/app_config.yml /cartodb/config/app_config.yml
 ADD ./config/database.yml /cartodb/config/database.yml
 ADD ./create_dev_user /cartodb/script/create_dev_user
 ADD ./setup_organization.sh /cartodb/script/setup_organization.sh
-ADD ./config/cartodb.nginx.proxy.conf /etc/nginx/nginx.conf
+ADD ./config/cartodb.nginx.proxy.conf /etc/nginx/sites-enabled/default
+ADD ./config/cartodb.nginx.https.proxy.conf /etc/nginx/sites-enabled/https
 ADD ./config/varnish.vcl /etc/varnish.vcl
 ADD ./geocoder.sh /cartodb/script/geocoder.sh
 ADD ./geocoder_server.sql /cartodb/script/geocoder_server.sql
@@ -234,9 +259,9 @@ RUN mkdir -p /cartodb/log && touch /cartodb/log/users_modifications && \
     perl -pi.bak -e 's/^bind 127.0.0.1 ::1$/bind 0.0.0.0/' /etc/redis/redis.conf && \
     service postgresql start && service redis-server start && \
     perl -pi -e 's/0\.22\.0/0.22.2/' /cartodb/app/models/user/db_service.rb && \
-	bash -l -c "cd /cartodb && bash script/create_dev_user && \
+        bash -l -c "cd /cartodb && bash script/create_dev_user && \
     bash script/setup_organization.sh && bash script/geocoder.sh" && \
-	service postgresql stop && service redis-server stop && \
+        service postgresql stop && service redis-server stop && \
     chmod +x /cartodb/script/fill_geocoder.sh && \
     chmod +x /cartodb/script/sync_tables_trigger.sh
 
