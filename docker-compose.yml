@@ -1,10 +1,14 @@
 version: '3'
 services:
   cartodb:
+    container_name: cartodb
     image: ninetu/docker-cartodb-https:4.12.30
     ports:
+      - 80:80
       - 443:443
     environment:
-      - CARTO_HOSTNAME=
-      - HTTPS=1
-      - LETSENCRYPT_EMAIL=
+      - CARTO_HOSTNAME=gisdb.zerotoone.studio
+      # - HTTPS=1
+      # - LETSENCRYPT_EMAIL=ninetu@gmail.com
+    volumes:
+      - ./nginx.site-enabled.conf:/etc/nginx/sites-enabled/default
