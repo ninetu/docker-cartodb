@@ -164,7 +164,7 @@ ADD ./cartodb_pgsql.sh /tmp/cartodb_pgsql.sh
 
 # Install NodeJS (6)
 RUN curl https://nodejs.org/download/release/v6.9.2/node-v6.9.2-linux-x64.tar.gz| tar -zxf - --strip-components=1 -C /usr && \
-  npm install -g grunt-cli && \
+  npm install -g grunt-cli@1.3.2 && \
   npm install -g npm@3.10.9 && \
   rm -r /tmp/npm-* /root/.npm
 
@@ -191,11 +191,11 @@ RUN git clone https://github.com/CartoDB/Windshaft-cartodb.git && \
 
 RUN git clone https://github.com/CartoDB/cartodb.git && \
     cd cartodb && \
-    git rm private && \
+    git checkout $CARTODB_VERSION && \
+#    git rm private && \
     sed -i -e 's/git@github.com\:/https\:\/\/github.com\//g' .gitmodules && \
 #    git submodule foreach --recursive git submodule update --init
     git submodule update --init --recursive && \
-    git checkout $CARTODB_VERSION && \
     # Install cartodb extension
     cd lib/sql && \
     PGUSER=postgres make install && \
@@ -205,14 +205,14 @@ RUN git clone https://github.com/CartoDB/cartodb.git && \
     npm install && \
     rm -r /tmp/npm-* /root/.npm && \
     perl -pi -e 's/gdal==1\.10\.0/gdal==2.2.2/' python_requirements.txt && \
-    pip install --no-binary :all: -r python_requirements.txt && \
-    gem install bundler bundle compass archive-tar-minitar rack && \
+#    pip install --no-binary :all: -r python_requirements.txt
+    pip install -r python_requirements.txt && \
+    gem i bundler -v 1.17.3 && \
+    gem install bundle compass archive-tar-minitar rack && \
     bundle update thin && \
-    /bin/bash -l -c 'bundle install' && \
+    bundle install && \
     cp config/grunt_development.json ./config/grunt_true.json && \
-    /bin/bash -l -c 'bundle exec grunt'
-    # && \
-    #rm -rf .git /root/.cache/pip node_modules
+    bundle exec grunt
 
 # Geocoder SQL client + server
 RUN git clone https://github.com/CartoDB/data-services.git && \

@@ -1,0 +1,10 @@
+version: '3'
+services:
+  cartodb:
+    image: ninetu/docker-cartodb-https:4.12.30
+    ports:
+      - 443:443
+    environment:
+      - CARTO_HOSTNAME=
+      - HTTPS=1
+      - LETSENCRYPT_EMAIL=
